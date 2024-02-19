@@ -537,6 +537,44 @@ impl Style {
         ansi_codes
     }
 
+    /// find the necessary ansi code to get from this style to another
+    pub fn compare_limited_ansi(&self, after: &Style, default_style: &Style) -> String {
+        let mut ansi_codes = String::new();
+
+        let empty_style = Style::empty();
+
+        let (before, after) = if after.reset {
+            ansi_codes.push_str(Ansi::RESET);
+            let mut updated_after = if after.reset {
+                default_style.clone()
+            } else {
+                self.clone()
+            };
+            updated_after.apply(after);
+            (&empty_style, updated_after)
+        } else {
+            (self, after.clone())
+        };
+
+        // if the new color is different and not none, set color
+        let color_changed = {
+            if before.color.is_none() && after.color.is_some() {
+                true
+            } else if before.color.is_some() && after.color.is_some() {
+                before.color.clone().unwrap().value != after.color.as_ref().unwrap().value
+            } else {
+                false
+            }
+        };
+
+        if color_changed {
+            let after_color = after.color.as_ref().unwrap();
+            ansi_codes.push_str(&Ansi::rgb(after_color.value));
+        }
+
+        ansi_codes
+    }
+
     /// Apply another style to this one
     pub fn apply(&mut self, style: &Style) {
         if let Some(color) = &style.color {

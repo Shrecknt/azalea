@@ -92,6 +92,35 @@ impl FormattedText {
     }
 
     /// Convert this component into an
+    /// [ANSI string](https://en.wikipedia.org/wiki/ANSI_escape_code), so you
+    /// can print it to your terminal and get styling.
+    ///
+    /// Uses a limited set of
+    /// ANSI control characters for compatibility with some applications that
+    /// might not support all ANSI control characters.
+    ///
+    /// This is technically a shortcut for
+    /// [`FormattedText::to_limited_ansi_with_custom_style`] with a default
+    /// [`Style`] colored white.
+    ///
+    /// # Examples
+    ///
+    /// ```rust
+    /// use azalea_chat::FormattedText;
+    /// use serde::de::Deserialize;
+    ///
+    /// let component = FormattedText::deserialize(&serde_json::json!({
+    ///    "text": "Hello, world!",
+    ///    "color": "red",
+    /// })).unwrap();
+    ///
+    /// println!("{}", component.to_ansi());
+    /// ```
+    pub fn to_limited_ansi(&self) -> String {
+        self.to_limited_ansi_with_custom_style(&DEFAULT_STYLE)
+    }
+
+    /// Convert this component into an
     /// [ANSI string](https://en.wikipedia.org/wiki/ANSI_escape_code).
     ///
     /// This is the same as [`FormattedText::to_ansi`], but you can specify a
@@ -111,6 +140,43 @@ impl FormattedText {
             let component_style = &component.get_base().style;
 
             let ansi_text = running_style.compare_ansi(component_style, default_style);
+            built_string.push_str(&ansi_text);
+            built_string.push_str(&component_text);
+
+            running_style.apply(component_style);
+        }
+
+        if !running_style.is_empty() {
+            built_string.push_str("\u{1b}[m");
+        }
+
+        built_string
+    }
+
+    /// Convert this component into an
+    /// [ANSI string](https://en.wikipedia.org/wiki/ANSI_escape_code).
+    ///
+    /// Uses a limited set of
+    /// ANSI control characters for compatibility with some applications that
+    /// might not support all ANSI control characters.
+    ///
+    /// This is the same as [`FormattedText::to_limited_ansi`], but you can
+    /// specify a default [`Style`] to use.
+    pub fn to_limited_ansi_with_custom_style(&self, default_style: &Style) -> String {
+        // this contains the final string will all the ansi escape codes
+        let mut built_string = String::new();
+        // this style will update as we visit components
+        let mut running_style = Style::default();
+
+        for component in self.clone().into_iter() {
+            let component_text = match &component {
+                Self::Text(c) => c.text.to_string(),
+                Self::Translatable(c) => c.to_string(),
+            };
+
+            let component_style = &component.get_base().style;
+
+            let ansi_text = running_style.compare_limited_ansi(component_style, default_style);
             built_string.push_str(&ansi_text);
             built_string.push_str(&component_text);
 
